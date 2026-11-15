@@ -21,6 +21,7 @@ export function parseTime(str) {
 }
 
 const ICONS = {
+  yt: '<rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.2v5.6l4.8-2.8z" fill="currentColor"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   library: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4-2.5z"/>',
   other: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
@@ -46,7 +47,7 @@ function fmt(sec) {
 const KIND = { link: "Link", file: "Library", external: "Other app", ext: "Extension" };
 const SITES = { netflix: "Netflix", hotstar: "Hotstar", prime: "Prime Video", jiocinema: "JioCinema", sonyliv: "SonyLIV", zee5: "ZEE5", youtube: "YouTube" };
 
-export function createSources({ socket, onShare, canShare, actions, history }) {
+export function createSources({ socket, onShare, canShare, actions, history, current }) {
   const root = document.getElementById("sheet");
 
   function close() {
@@ -151,6 +152,80 @@ export function createSources({ socket, onShare, canShare, actions, history }) {
     show(node);
   }
 
+  // YouTube: search, or "Up next" for what's playing. Picking one plays it for both (and lands in history).
+  function youtubeSheet(startWithUpNext = false) {
+    const cur = current();
+    const node = el(`
+      <div class="sheet yt-sheet">
+        <form class="yt-search" autocomplete="off">
+          <input type="search" name="q" placeholder="Search YouTube" aria-label="Search YouTube" enterkeyhint="search" />
+        </form>
+        <p class="hint yt-head"></p>
+        <ul class="yt-list"></ul>
+      </div>`);
+    const form = node.querySelector("form");
+    const input = form.elements.q;
+    const head = node.querySelector(".yt-head");
+    const ul = node.querySelector(".yt-list");
+    let req = 0;
+    let timer = null;
+
+    function render(items) {
+      ul.innerHTML = "";
+      for (const it of items) {
+        const li = document.createElement("li");
+        li.innerHTML = `<button class="yt-item"><img alt="" loading="lazy" /><span class="yt-text"><span class="yt-title"></span><span class="yt-meta"></span></span></button>`;
+        li.querySelector("img").src = it.thumb;
+        li.querySelector(".yt-title").textContent = it.title;
+        li.querySelector(".yt-meta").textContent = [it.channel, it.live ? "Live" : it.duration ? fmt(it.duration) : ""].filter(Boolean).join(" · ");
+        li.querySelector("button").addEventListener("click", () => {
+          socket.emit("load-yt", { id: it.id, title: it.title });
+          close();
+        });
+        ul.appendChild(li);
+      }
+    }
+    async function load(url, label) {
+      const my = ++req;
+      head.textContent = label;
+      ul.innerHTML = `<li class="hint">Loading…</li>`;
+      try {
+        const r = await fetch(url);
+        const j = await r.json();
+        if (my !== req) return;
+        if (!r.ok) throw new Error(j.error);
+        if (!j.items.length) ul.innerHTML = `<li class="hint">Nothing found.</li>`;
+        else render(j.items);
+      } catch (e) {
+        if (my === req) ul.innerHTML = `<li class="hint">${(e.message || "Couldn't load.").replace(/</g, "&lt;")}</li>`;
+      }
+    }
+    function showDefault() {
+      if (cur && cur.ytId) load(`/api/yt/upnext/${cur.ytId}?title=${encodeURIComponent(cur.title || "")}`, "Up next, picked by YouTube for what's playing");
+      else {
+        req++;
+        head.textContent = "Search for anything. It plays here for both of you, without ads.";
+        ul.innerHTML = "";
+      }
+    }
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      clearTimeout(timer);
+      const q = input.value.trim();
+      q ? load(`/api/yt/search?q=${encodeURIComponent(q)}`, `Results for “${q}”`) : showDefault();
+      input.blur();
+    });
+    input.addEventListener("input", () => {
+      clearTimeout(timer);
+      const q = input.value.trim();
+      timer = setTimeout(() => (q.length >= 2 ? load(`/api/yt/search?q=${encodeURIComponent(q)}`, `Results for “${q}”`) : !q && showDefault()), 600);
+    });
+    show(node);
+    showDefault();
+    // Phones: don't pop the keyboard over the Up next list.
+    if (startWithUpNext || matchMedia("(pointer: coarse)").matches) input.blur();
+  }
+
   function historySheet() {
     const items = history.items();
     const node = el(`
@@ -196,6 +271,7 @@ export function createSources({ socket, onShare, canShare, actions, history }) {
       <div class="sheet menu" role="menu">
         <div class="menu-group">${prev ? item("back", "back", "Back to previous", `<small class="prev-title"></small>`) : ""}${item("history", "history", "Watched tonight")}</div>
         <div class="menu-group">
+          ${item("yt", "yt", s.ytNow ? "YouTube: up next &amp; search" : "Search YouTube")}
           ${item("link", "link", "Paste a link")}
           ${item("library", "library", "Library")}
           ${item("other", "other", "Netflix, Hotstar &amp; other apps")}
@@ -224,6 +300,7 @@ export function createSources({ socket, onShare, canShare, actions, history }) {
       else if (a === "share") onShare();
       else if (a === "install") installSheet();
       else if (a === "history") historySheet();
+      else if (a === "yt") youtubeSheet();
       else if (a === "back" && prev) socket.emit("resume", { key: prev.key });
       else actions.run(a);
     });
@@ -241,5 +318,5 @@ export function createSources({ socket, onShare, canShare, actions, history }) {
     else if (k === "other") otherSheet();
   });
 
-  return { close, menu: menuSheet, history: historySheet };
+  return { close, menu: menuSheet, history: historySheet, youtube: youtubeSheet };
 }

@@ -8,6 +8,7 @@ const { createMediaManager } = require("./media/fetcher");
 const { mediaRoutes } = require("./media/routes");
 const { attachSockets } = require("./sockets");
 const { createChatMedia } = require("./chatmedia");
+const { createYouTube } = require("./youtube");
 
 const PUBLIC = path.join(__dirname, "..", "public");
 const OPEN_FILES = new Set(["/login.html", "/login.js", "/app.css", "/icon.svg", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"]);
@@ -20,6 +21,7 @@ function createServer(config) {
   const room = createRoom();
   const manager = createMediaManager({ cookiesBrowser: config.cookiesBrowser });
   const chatMedia = createChatMedia({ giphyKey: config.giphyKey });
+  const youtube = createYouTube();
 
   app.use((req, res, next) => {
     res.set({ "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" });
@@ -54,13 +56,14 @@ function createServer(config) {
   app.use(auth.httpMiddleware);
   app.get("/api/me", (req, res) => res.json({ name: req.user.name, gifSearch: chatMedia.hasGiphy }));
   app.use(chatMedia.router);
+  app.use(youtube.router);
   app.get("/vendor/hls.min.js", (req, res) => res.sendFile(require.resolve("hls.js/dist/hls.min.js")));
   app.use(mediaRoutes({ manager, mediaDir: config.mediaDir }));
   app.use(express.static(PUBLIC, { index: "index.html" }));
 
   const server = http.createServer(app);
   const io = new Server(server, { serveClient: true, maxHttpBufferSize: 1e6, cors: { origin: true, credentials: false }, allowRequest: auth.allowRequest });
-  attachSockets(io, { room, manager, mediaDir: config.mediaDir, auth, chatMedia });
+  attachSockets(io, { room, manager, mediaDir: config.mediaDir, auth, chatMedia, youtube });
 
   return { app, server, io, auth, room, manager };
 }

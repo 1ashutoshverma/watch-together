@@ -51,7 +51,16 @@
           <p class="status" id="status" hidden></p>
           <button class="tap" id="tap" hidden><span>Tap to sync</span></button>
 
+          <div class="autonext" id="autoNext" hidden>
+            <img alt="" />
+            <div class="an-text"><small>Up next · <span class="an-count"></span></small><strong class="an-title"></strong></div>
+            <div class="an-actions"><button class="btn" id="anNow">Play now</button><button class="btn ghost" id="anCancel">Cancel</button></div>
+          </div>
+
           <div class="stage-tools">
+            <button class="icon-btn" id="upNextBtn" title="YouTube: up next &amp; search" aria-label="Up next" hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h11M4 12h11M4 18h7"/><path d="M17 14v6l4-3z" fill="currentColor"/></svg>
+            </button>
             <button class="icon-btn" id="fullBtn" title="Full screen with chat (F)" aria-label="Full screen with chat">
               <svg class="i-enter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
               <svg class="i-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>

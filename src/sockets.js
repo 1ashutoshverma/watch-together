@@ -1,9 +1,12 @@
 const { resolveSafe } = require("./media/library");
 const { createHistory } = require("./history");
+const { youtubeId, watchUrl, YT_ID } = require("./youtube");
+
+const AUTONEXT_MS = 8000;
 
 const COUNTDOWN_MS = 4000;
 
-function attachSockets(io, { room, manager, mediaDir, auth, chatMedia }) {
+function attachSockets(io, { room, manager, mediaDir, auth, chatMedia, youtube }) {
   io.use(auth.socketMiddleware);
 
   manager.on("status", (s) => io.emit("media-status", s));
@@ -17,8 +20,28 @@ function attachSockets(io, { room, manager, mediaDir, auth, chatMedia }) {
     io.emit("history", historyList());
   }
 
+  // Autoplay of YouTube's next suggestion when a video ends (either side can cancel).
+  let autoNext = null; // {timer, item, mediaId}
+  function cancelAutoNext(silent) {
+    if (!autoNext) return;
+    clearTimeout(autoNext.timer);
+    autoNext = null;
+    if (!silent) io.emit("autonext", null);
+  }
+  function playYouTube(id, by, title) {
+    if (!YT_ID.test(id || "")) return;
+    const url = watchUrl(id);
+    io.emit("media-status", { status: "loading", by, title });
+    load(() => manager.loadLink(url), { type: "link", url });
+  }
+
   // Every change of what's playing goes through here, so the item being left lands in history.
   function switchTo(media, source, { position = 0, playing = false } = {}) {
+    cancelAutoNext();
+    if (media && source && source.type === "link") {
+      const yt = youtubeId(source.url);
+      if (yt) media.ytId = yt;
+    }
     const cur = room.stateForJoin();
     history.record(cur.media, cur.position);
     history.attach(media, source);
@@ -163,6 +186,34 @@ function attachSockets(io, { room, manager, mediaDir, auth, chatMedia }) {
         manager.stop();
         switchTo({ id: "extn-" + Date.now(), kind: "ext", title: src.title, site: src.site, by: name }, src, { position: opts.position || 0.001 });
       }
+    });
+
+    socket.on("load-yt", ({ id, title } = {}) => playYouTube(String(id || ""), name, String(title || "").slice(0, 200)));
+
+    socket.on("ended", async ({ id } = {}) => {
+      const m = room.media;
+      if (!youtube || !m || m.id !== id || !m.ytId || autoNext) return;
+      autoNext = { pending: true, mediaId: m.id };
+      let items = [];
+      try {
+        items = await youtube.upNext(m.ytId, m.title);
+      } catch {}
+      if (!autoNext || autoNext.mediaId !== m.id || !room.media || room.media.id !== m.id) return;
+      const item = items[0];
+      if (!item) return (autoNext = null);
+      const at = Date.now() + AUTONEXT_MS;
+      autoNext = { mediaId: m.id, item, timer: setTimeout(() => {
+        autoNext = null;
+        playYouTube(item.id, "Up next", item.title);
+      }, AUTONEXT_MS) };
+      io.emit("autonext", { item, at });
+    });
+    socket.on("autonext-cancel", () => cancelAutoNext());
+    socket.on("autonext-now", () => {
+      if (!autoNext || !autoNext.item) return;
+      const item = autoNext.item;
+      cancelAutoNext();
+      playYouTube(item.id, name, item.title);
     });
 
     socket.on("history-clear", () => {

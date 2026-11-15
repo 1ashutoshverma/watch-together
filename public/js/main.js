@@ -51,6 +51,7 @@ function renderContinue() {
 const sources = createSources({
   socket,
   history: { items: () => watchHistory, currentPosition: () => sync.expectedPosition() },
+  current: () => (room && room.media) || null,
   onShare: () => share.start(),
   canShare,
   actions: {
@@ -61,6 +62,7 @@ const sources = createSources({
       wide: isWide(),
       chatHidden: $("page").classList.contains("chat-hidden"),
       hasMedia: !!(room && room.media),
+      ytNow: !!(room && room.media && room.media.ytId),
     }),
     run(action) {
       if (action === "full") toggleFull();
@@ -120,6 +122,8 @@ function render(state) {
   video.hidden = !(videoMode || (kind === "share" && !sharingSelf));
   if (!videoMode) tap.hidden = true;
   document.body.classList.toggle("video-on", !video.hidden);
+  $("upNextBtn").hidden = !(m && m.ytId);
+  if (!m || m.id !== autoNextFor) hideAutoNext();
 
   if (videoMode) {
     share.leaveView();
@@ -167,12 +171,42 @@ socket.on("connect_error", (e) => {
 socket.io.on("reconnect", () => setStatus("Back online", "", 1500));
 socket.on("disconnect", () => setStatus("Reconnecting to the Mac…"));
 
-socket.on("media-status", ({ status, message, by }) => {
-  if (status === "loading") setStatus(by && by !== me ? `${by} picked something. Loading…` : "Loading…");
+socket.on("media-status", ({ status, message, by, title }) => {
+  if (status === "loading") setStatus(title ? `${by && by !== me ? by + " picked" : "Loading"} “${title.length > 50 ? title.slice(0, 50) + "…" : title}”${by && by !== me ? ". Loading…" : "…"}` : by && by !== me ? `${by} picked something. Loading…` : "Loading…");
   else if (status === "resolving" || status === "starting") setStatus(message);
   else if (status === "ready") setStatus("", "");
 });
 socket.on("media-error", ({ message }) => setStatus(message, "error", 9000));
+
+// ---------- YouTube: Up next + autoplay when a video ends ----------
+$("upNextBtn").addEventListener("click", () => sources.youtube(true));
+video.addEventListener("ended", () => {
+  if (room && room.media && room.media.ytId) socket.emit("ended", { id: room.media.id });
+});
+let autoNextFor = null;
+let autoNextTimer = null;
+function hideAutoNext() {
+  clearInterval(autoNextTimer);
+  $("autoNext").hidden = true;
+  autoNextFor = null;
+}
+socket.on("autonext", (data) => {
+  if (!data) return hideAutoNext();
+  autoNextFor = room && room.media ? room.media.id : null;
+  const box = $("autoNext");
+  box.querySelector("img").src = data.item.thumb;
+  box.querySelector(".an-title").textContent = data.item.title;
+  box.hidden = false;
+  const tick = () => {
+    const left = Math.max(0, Math.ceil((data.at - serverNow()) / 1000));
+    box.querySelector(".an-count").textContent = left ? `Playing in ${left}` : "Starting…";
+  };
+  tick();
+  clearInterval(autoNextTimer);
+  autoNextTimer = setInterval(tick, 250);
+});
+$("anNow").addEventListener("click", () => socket.emit("autonext-now"));
+$("anCancel").addEventListener("click", () => socket.emit("autonext-cancel"));
 
 tap.addEventListener("click", () => {
   tap.hidden = true;
