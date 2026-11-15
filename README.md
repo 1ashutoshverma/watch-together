@@ -1,297 +1,166 @@
-Perfect 👍
-Below is a **clean, copy-paste friendly README.md** you can keep in your repo to **remember everything** — setup, run, conversion, Cloudflare tunnel, and common fixes.
+# Watch Together
 
-You can save this exactly as **`README.md`**.
+A self-hosted, private watch room. One Mac acts as the host, and participants join from a phone
+or laptop through a secure link. Playback stays in sync across the room, with chat alongside
+the video.
 
----
-
-# 🎬 Watch Together (Local → Online)
-
-A lightweight **Watch Together** app to stream a **local movie file**, sync play/pause/seek, and chat in real-time — **no DB, no cloud storage**, just local + tunnel.
-
-Supports:
-
-- 2 users
-- Real-time sync
-- Real-time chat
-- Mobile & desktop
-- Cloudflare Tunnel for internet access
+Videos can come from a pasted link (YouTube and most video sites), the host's own movie folder,
+or a shared browser tab. Subscription services such as Netflix, Hotstar, Prime Video and
+JioCinema are kept in sync on each participant's own account through a companion Chrome extension.
 
 ---
 
-## 📦 Prerequisites
+## Features
 
-- **Node.js** ≥ 18
-- **npm**
-- **Ubuntu / Linux / macOS / Windows**
-- **FFmpeg** (for video/audio compatibility)
-- Internet connection (for Cloudflare Tunnel)
+**Playback**
+- **Paste a link**: plays videos from YouTube and most video sites, without site ads.
+- **Library**: streams files from a folder on the host. MKV, HEVC and other formats are converted
+  as they play.
+- **YouTube**: in-app search, *Up next* suggestions from YouTube's own autoplay mix, and an
+  autoplay countdown when a video ends.
+- **Share a tab** (laptop): live picture and sound from any non-DRM browser tab, sent
+  peer-to-peer.
+- **Subscription services**: a Chrome extension keeps Netflix, Hotstar, Prime Video and JioCinema
+  in sync on laptops. Phones use a shared 3-2-1 countdown.
+- **Sync**: play, pause and seek apply to everyone. Late joiners and page refreshes land at the
+  current position.
+- **Session history**: everything played is listed with its last position and can be resumed,
+  including a one-tap *Back to previous*.
+
+**Chat**
+- Messages, emoji, GIF search (optional) and photo sharing in a single panel.
+- Floating chat over the video in full-screen and landscape modes.
+- Stays pinned to the newest message, with a *New messages* indicator when reading back.
+
+**Interface**
+- Responsive layouts for phone and laptop. On phones the video stays in place when the keyboard
+  opens.
+- Two full-screen modes: video full screen with floating chat, and app full screen that hides
+  the browser UI. On iPhone, this is available by adding the app to the Home Screen.
+- A single menu for all actions, including a control that pauses and blanks every screen.
+
+**Privacy & security**
+- Password-protected room with rate-limited sign-in and a cap of two participants.
+- The server listens only on `127.0.0.1`. Remote access is through an HTTPS Cloudflare tunnel
+  with a new random URL each session.
+- No logging. Chat, history and uploads live in memory or temporary storage and are deleted when
+  the server stops.
+- Link resolution, GIF search and YouTube thumbnails are fetched by the host, so participants'
+  devices never contact those services directly.
 
 ---
 
-## 📁 Project Structure
+## Requirements
 
-```
-watch-together/
-├── server.js
-├── movie_hindi.mp4        # final playable video
-├── public/
-│   ├── index.html
-│   └── client.js
-└── README.md
-```
+- macOS with [Homebrew](https://brew.sh)
+- Node.js 18+, `ffmpeg`, `yt-dlp`, `cloudflared`
+- Google Chrome, for the optional companion extension
 
----
-
-## 🚀 1. Install Dependencies
-
-### Node dependencies
+## Installation
 
 ```bash
-npm install express socket.io
+brew install node ffmpeg yt-dlp cloudflared
+git clone https://github.com/1ashutoshverma/watch-together.git
+cd watch-together
+npm install
+cp .env.example .env
 ```
 
----
+Edit `.env` and set at least `ROOM_PASSWORD`.
 
-## ▶️ 2. Run the App Locally
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `ROOM_PASSWORD` | random, printed at start | Password required to join the room. |
+| `MEDIA_DIR` | `~/Movies` | Folder shown in **Library**. |
+| `PORT` | `3000` | Local port the tunnel points to. |
+| `GIPHY_API_KEY` | none | Enables GIF search. Free key from [developers.giphy.com](https://developers.giphy.com). |
+| `YTDLP_COOKIES_BROWSER` | none | Browser to read cookies from (for example `chrome`) for videos that require sign-in. |
+| `NO_TUNNEL` | none | Set to `1` to run locally without a public link. |
+
+## Usage
 
 ```bash
-node server.js
+npm start        # start the server and a secure tunnel
+npm run local    # local only, at http://localhost:3000
 ```
 
-Open in browser:
+On start, the terminal prints the room link and a QR code. Share the link with participants;
+they sign in with a display name and the room password. The link changes every session.
 
-```
-http://localhost:3000
-```
+The host Mac must stay on and online while the room is in use; `npm start` prevents sleep
+automatically. Press `Ctrl+C` to stop the server. Temporary files are removed on exit.
 
-At this stage:
+### What can be played
 
-- Video plays locally
-- Chat works
-- Sync works
+| Source | How | Laptop | Phone |
+|---|---|---|---|
+| YouTube and most video sites | Menu → *Paste a link* / *Search YouTube* | Synced | Synced |
+| Files on the host | Menu → *Library* | Synced | Synced |
+| Netflix, Hotstar, Prime Video, JioCinema | Companion extension | Exact sync | Countdown sync |
+| Any non-DRM browser tab | Menu → *Share a tab* | Shares and watches | Watches |
+
+Subscription services are DRM-protected. They can't be streamed through the room or
+screen-shared; each participant plays them on their own account while the room keeps time.
+
+### Companion Chrome extension
+
+1. Open `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked**, and select
+   the `extension` folder.
+2. Open the extension popup and enter the room link, a display name and the room password.
+   Repeat this each session, since the link changes.
+3. Open the title on a supported service and choose **Sync this tab** in the sidebar.
+   Participants with the extension on the same service follow play, pause and seek.
+4. For participants on phones, use **Play together** / **Pause together** to run a synced
+   countdown.
+
+### Controls
+
+| Action | Where |
+|---|---|
+| Video full screen with chat | Corner button, `F`, or rotate the phone |
+| Hide browser UI | Menu → *Hide browser bars* (iPhone: Share → *Add to Home Screen*) |
+| Up next and YouTube search | Corner list button while YouTube is playing |
+| History and resume | Menu → *Back to previous* / *Watched tonight*, or *Continue watching* on the start screen |
+| Pause and blank every screen | Menu → *Panic*, or `P` on a laptop. Double-tap to restore. |
+| Play/pause, skip 10 s | `Space`, `←` / `→` on a laptop |
+
+Mobile browsers need one tap before they play audio on their own. If a phone shows
+**Tap to sync**, tap it once.
 
 ---
 
-## 🌍 3. Make It Online (Cloudflare Tunnel)
+## Troubleshooting
 
-### ✅ Install Cloudflared (Ubuntu)
+| Symptom | Fix |
+|---|---|
+| "This video needs a login" | Sign in to the site in Chrome on the host, set `YTDLP_COOKIES_BROWSER=chrome`, and restart. |
+| A site or YouTube search stops working | Run `brew upgrade yt-dlp`. Sites change often. |
+| Seek bar is short at first | Links are fetched in the background, and the bar grows as more arrives. |
+| Tab sharing won't connect | Some restrictive networks block peer-to-peer connections. Links and Library still work. |
+| GIF search is unavailable | Add `GIPHY_API_KEY` to `.env` and restart. Photo sharing works without it. |
+
+## Development
 
 ```bash
-sudo apt update
-sudo apt install -y curl
+npm test         # unit and integration tests (node:test; requires ffmpeg)
 ```
 
-Add Cloudflare repo:
-
-```bash
-curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
-  | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-
-echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared $(lsb_release -cs) main" \
-  | sudo tee /etc/apt/sources.list.d/cloudflared.list
-```
-
-Install:
-
-```bash
-sudo apt update
-sudo apt install cloudflared
-```
-
-Verify:
-
-```bash
-cloudflared --version
-```
-
----
-
-### ▶️ Start Cloudflare Tunnel
-
-**In a new terminal (keep server running):**
-
-```bash
-cloudflared tunnel --url http://localhost:3000
-```
-
-You will get a URL like:
-
-```
-https://random-name.trycloudflare.com
-```
-
-👉 Share this URL with your friend.
-
-📌 Stop tunnel = app goes offline
-📌 Stop Node server = stream stops
-
----
-
-## 🎥 4. Video Format (IMPORTANT)
-
-### ❌ MKV with AC3/DTS audio will NOT play audio in browser
-
-Browsers **do not support AC3 / DTS audio**.
-
-You **must convert audio to AAC**.
-
----
-
-## 🔍 Check Video Audio Codec
-
-```bash
-ffprobe movie.mkv
-```
-
-If you see:
-
-```
-Audio: ac3
-Audio: dts
-```
-
-➡️ Conversion required ✅
-
----
-
-## 🔄 Convert Video (FAST & SAFE)
-
-### ✅ Convert MKV → MP4 (Hindi only, browser-safe)
-
-```bash
-ffmpeg -threads 2 -i movie.mkv \
--map 0:v:0 \
--map 0:a:m:language:hin \
--c:v copy \
--c:a aac \
--ac 2 \
--b:a 160k \
--movflags faststart \
-movie_hindi.mp4
-```
-
-### ⏱ Time taken
-
-- 2–4 hour movie → **~1–3 minutes**
-- Video is NOT re-encoded
-- Only audio is converted
-
----
-
-## 🧪 Test Converted Video
-
-```bash
-google-chrome movie_hindi.mp4
-```
-
-If audio plays here → app will work 100%.
-
----
-
-## ⚙️ Update Server Video Path
-
-In `server.js`:
-
-```js
-const videoPath = path.join(__dirname, "movie_hindi.mp4");
-```
-
-Restart server:
-
-```bash
-node server.js
-```
-
----
-
-## 📱 Mobile UX Notes (Expected Behavior)
-
-- Video stays fixed
-- Chat scrolls independently
-- Keyboard opens → chat moves, video does NOT
-- Enter key sends message
-- Keyboard closes naturally after send (no force focus)
-
-This matches WhatsApp / Discord behavior.
-
----
-
-## 🎛️ Common Commands (Quick Reference)
-
-### Start app
-
-```bash
-node server.js
-```
-
-### Start tunnel
-
-```bash
-cloudflared tunnel --url http://localhost:3000
-```
-
-### Stop tunnel
-
-```
-Ctrl + C
-```
-
-### Convert video
-
-```bash
-ffmpeg -i movie.mkv -map 0:v -map 0:a -c:v copy -c:a aac movie.mp4
-```
-
----
-
-## ⚠️ Cloudflare Tunnel Limits (Quick Tunnel)
-
-- No hard time limit
-- Usually stable for **hours**
-- Not guaranteed for days
-- Perfect for **temporary watch sessions**
-
-For long-running usage → use **named tunnel** (optional).
-
----
-
-## ✅ Best Practices
-
-- Do NOT keep tunnel running 24/7
-- Do NOT share URL publicly
-- Limit users to 2
-- Stop tunnel after movie
-- Use MP4 + AAC only
-
----
-
-## 🏁 Summary
-
-✔ Local video
-✔ Online streaming via Cloudflare
-✔ No cloud storage
-✔ No DB
-✔ No cost
-✔ Private & temporary
-
----
-
-## 🧠 Built for
-
-- Learning
-- Personal use
-- Movie night with a friend
-- Engineering experimentation
-
----
-
-If you want, next we can add:
-
-- Room codes
-- Password protection
-- Auto shutdown
-- Electron desktop build
-- PWA install support
-
-Just tell me 👌
+| Path | Responsibility |
+|---|---|
+| `server.js` | Startup, tunnel, sleep prevention, cleanup |
+| `src/app.js` | HTTP routes and middleware |
+| `src/auth.js` | Sign-in, signed session tokens, rate limiting |
+| `src/room.js` | Playback state, chat, participant cap |
+| `src/sockets.js` | Real-time events, media switching, autoplay |
+| `src/history.js` | Session history and resume points |
+| `src/media/` | yt-dlp + ffmpeg → HLS pipeline, library, media routes |
+| `src/youtube.js` | YouTube search, Up next, thumbnail proxy |
+| `src/chatmedia.js` | Photo uploads and GIF search proxy |
+| `public/` | Web client |
+| `extension/` | Chrome MV3 companion extension |
+
+## License
+
+ISC

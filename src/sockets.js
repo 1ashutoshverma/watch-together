@@ -80,11 +80,10 @@ function attachSockets(io, { room, manager, mediaDir, auth }) {
       io.emit("state", room.applyIntent({ type: "seek", position: pos }));
     });
 
-    socket.on("load-ext", ({ title, site } = {}) => {
+    socket.on("load-ext", ({ title, site, position, playing } = {}) => {
       manager.stop();
-      const cur = room.media;
-      if (cur && cur.kind === "ext" && cur.site === site && cur.title === title) return;
-      io.emit("state", room.setMedia({ id: "extn-" + Date.now(), kind: "ext", title: String(title || "").slice(0, 160), site: String(site || "").slice(0, 40), by: name }));
+      room.setMedia({ id: "extn-" + Date.now(), kind: "ext", title: String(title || "").slice(0, 160), site: String(site || "").slice(0, 40), by: name });
+      io.emit("state", room.applyIntent({ type: playing ? "play" : "pause", position }));
     });
 
     socket.on("ext-title", ({ title, site } = {}) => {

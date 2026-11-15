@@ -84,11 +84,24 @@ function createAuth({ password, secret, now = Date.now, ttlMs = 24 * 60 * 60 * 1
   }
 
   function socketMiddleware(socket, next) {
-    const token = (socket.handshake.auth && socket.handshake.auth.token) || parseCookies(socket.handshake.headers.cookie)[COOKIE];
+    const token = (socket.handshake.auth && socket.handshake.auth.token) || (socket.handshake.query && socket.handshake.query.token) || parseCookies(socket.handshake.headers.cookie)[COOKIE];
     const user = verify(token);
     if (!user) return next(new Error("unauthorized"));
     socket.data.user = user;
     next();
+  }
+
+  // Engine-level gate so unauthenticated clients can't even open a socket.io transport.
+  function allowRequest(req, callback) {
+    let token = parseCookies(req.headers.cookie)[COOKIE];
+    if (!verify(token)) {
+      try {
+        token = new URL(req.url, "http://x").searchParams.get("token");
+      } catch {
+        token = null;
+      }
+    }
+    callback(null, !!verify(token));
   }
 
   function cookieFor(req, token) {
@@ -96,7 +109,7 @@ function createAuth({ password, secret, now = Date.now, ttlMs = 24 * 60 * 60 * 1
     return `${COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(ttlMs / 1000)}${secure ? "; Secure" : ""}`;
   }
 
-  return { login, verify, httpMiddleware, socketMiddleware, cookieFor, clientIp };
+  return { login, verify, httpMiddleware, socketMiddleware, allowRequest, cookieFor, clientIp };
 }
 
 module.exports = { createAuth, parseCookies, clientIp, COOKIE };

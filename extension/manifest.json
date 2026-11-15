@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Just us sync",
+  "version": "1.0.0",
+  "description": "Keeps Netflix, Hotstar, Prime Video and JioCinema in sync with your Just us room, with chat beside the player.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://*.trycloudflare.com/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Just us sync" },
+  "icons": { "128": "icon.png" },
+  "content_scripts": [
+    {
+      "matches": ["https://www.netflix.com/*", "https://www.hotstar.com/*", "https://www.primevideo.com/*", "https://www.amazon.in/*", "https://www.amazon.com/*", "https://www.jiocinema.com/*", "https://www.sonyliv.com/*", "https://www.zee5.com/*", "https://www.youtube.com/*"],
+      "js": ["page.js"],
+      "world": "MAIN",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.netflix.com/*", "https://www.hotstar.com/*", "https://www.primevideo.com/*", "https://www.amazon.in/*", "https://www.amazon.com/*", "https://www.jiocinema.com/*", "https://www.sonyliv.com/*", "https://www.zee5.com/*", "https://www.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

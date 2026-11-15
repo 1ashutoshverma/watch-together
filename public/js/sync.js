@@ -34,12 +34,14 @@ export function createSync({ video, socket, onNeedTap }) {
     const want = expectedPosition();
     if (Math.abs(video.currentTime - want) > MATCH_TOLERANCE) guard(() => (video.currentTime = want));
     if (state.playing && video.paused) {
+      const forState = state;
       applying++;
       try {
         await video.play();
         onNeedTap(false);
-      } catch {
-        onNeedTap(true);
+      } catch (e) {
+        // Only a blocked autoplay needs a tap; AbortError just means the source changed mid-play.
+        if (e && e.name === "NotAllowedError" && enabled && state === forState) onNeedTap(true);
       } finally {
         setTimeout(() => applying--, 250);
       }
@@ -72,6 +74,7 @@ export function createSync({ video, socket, onNeedTap }) {
     setState(s, { videoMode }) {
       state = s;
       enabled = videoMode;
+      if (!videoMode) onNeedTap(false);
       apply();
     },
     tapToSync() {

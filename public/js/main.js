@@ -21,7 +21,7 @@ let statusTimer = null;
 const socket = io({ transports: ["websocket", "polling"] });
 const player = createPlayer(video);
 const sync = createSync({ video, socket, onNeedTap: (show) => (tap.hidden = !show) });
-const share = createShare({ socket, player, onError: (m) => setStatus(m, "error") });
+const share = createShare({ socket, player, onError: (m) => setStatus(m, "error"), onBlocked: () => (tap.hidden = false) });
 
 createChat({ socket, me: () => me });
 createSources({ socket, onShare: () => share.start() });
@@ -131,7 +131,11 @@ socket.on("media-status", ({ status, message, by }) => {
 });
 socket.on("media-error", ({ message }) => setStatus(message, "error", 9000));
 
-tap.addEventListener("click", () => sync.tapToSync());
+tap.addEventListener("click", () => {
+  tap.hidden = true;
+  if (video.srcObject) video.play().catch(() => {});
+  else sync.tapToSync();
+});
 $("stopShare").addEventListener("click", () => share.stop());
 $("stopBtn").addEventListener("click", () => socket.emit("stop-media"));
 

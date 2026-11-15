@@ -1,11 +1,12 @@
 // Tab / screen share over WebRTC. The server only relays signalling; video goes device to device.
+const video = () => document.getElementById("video");
 const ICE = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
 
 export function canShare() {
   return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) && !/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 }
 
-export function createShare({ socket, player, onError }) {
+export function createShare({ socket, player, onError, onBlocked }) {
   let stream = null;
   const peers = new Map(); // peerId -> RTCPeerConnection
   let viewing = null; // media id currently being viewed
@@ -76,7 +77,9 @@ export function createShare({ socket, player, onError }) {
     if (data.sdp && data.sdp.type === "offer") {
       if (pc) pc.close();
       pc = newPeer(from);
-      pc.ontrack = (e) => player.setStream(viewing, e.streams[0]);
+      pc.ontrack = (e) => {
+        if (video().srcObject !== e.streams[0]) player.setStream(viewing, e.streams[0], onBlocked);
+      };
       await pc.setRemoteDescription(data.sdp);
       await pc.setLocalDescription(await pc.createAnswer());
       socket.emit("rtc", { to: from, data: { sdp: pc.localDescription } });

@@ -39,3 +39,13 @@ test("name required and trimmed", () => {
   assert.equal(auth.login("pw", "   ", "1").ok, false);
   assert.equal(auth.verify(auth.login("pw", "  Ashu  ", "1").token).name, "Ashu");
 });
+
+test("allowRequest accepts cookie or query token, rejects otherwise", async () => {
+  const auth = createAuth({ password: "pw" });
+  const { token } = auth.login("pw", "A", "1");
+  const ask = (req) => new Promise((r) => auth.allowRequest(req, (_, ok) => r(ok)));
+  assert.equal(await ask({ headers: { cookie: "wt=" + encodeURIComponent(token) }, url: "/socket.io/?EIO=4" }), true);
+  assert.equal(await ask({ headers: {}, url: "/socket.io/?EIO=4&token=" + encodeURIComponent(token) }), true);
+  assert.equal(await ask({ headers: {}, url: "/socket.io/?EIO=4" }), false);
+  assert.equal(await ask({ headers: { cookie: "wt=bad" }, url: "/socket.io/?token=bad" }), false);
+});

@@ -66,11 +66,12 @@ export function createPlayer(video) {
     }
   }
 
-  function setStream(id, stream) {
+  function setStream(id, stream, onBlocked) {
     reset();
     currentId = id;
     video.srcObject = stream;
     video.controls = false;
+    video.play().catch((e) => e && e.name === "NotAllowedError" && onBlocked && onBlocked());
   }
 
   return { setSource, setStream, reset, get id() { return currentId; } };

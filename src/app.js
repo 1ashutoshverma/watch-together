@@ -56,7 +56,7 @@ function createServer(config) {
   app.use(express.static(PUBLIC, { index: "index.html" }));
 
   const server = http.createServer(app);
-  const io = new Server(server, { serveClient: true, maxHttpBufferSize: 1e6, cors: { origin: true, credentials: false } });
+  const io = new Server(server, { serveClient: true, maxHttpBufferSize: 1e6, cors: { origin: true, credentials: false }, allowRequest: auth.allowRequest });
   attachSockets(io, { room, manager, mediaDir: config.mediaDir, auth });
 
   return { app, server, io, auth, room, manager };
