@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#1a1220" />
+    <title>Just us</title>
+    <link rel="icon" href="/icon.svg" />
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <main class="login">
+      <form id="form" autocomplete="on">
+        <h1>Just us</h1>
+        <p>A private room for two.</p>
+        <label class="field">Your name<input id="name" name="name" autocomplete="nickname" maxlength="24" required /></label>
+        <label class="field">Room password<input id="password" name="password" type="password" autocomplete="current-password" required /></label>
+        <button class="btn" type="submit">Come in</button>
+        <p class="err" id="err" role="alert"></p>
+      </form>
+    </main>
+    <script src="/login.js"></script>
+  </body>
+</html>

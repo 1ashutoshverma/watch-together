@@ -1,194 +1,94 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <title>Watch Together</title>
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-    />
-
-    <style>
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: #111;
-        color: #fff;
-        height: 100vh;
-        overflow: hidden; /* 🔑 prevent page scroll */
-      }
-
-      h2 {
-        margin: 6px 0;
-        text-align: center;
-        font-size: 15px;
-      }
-
-      /* ROOT LAYOUT */
-      .page {
-        height: calc(100vh - 28px);
-        display: flex;
-      }
-
-      /* VIDEO SECTION */
-      .video-wrapper {
-        flex: 1;
-        background: black;
-      }
-
-      video {
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        display: block;
-      }
-
-      /* CHAT SECTION */
-      .chat-wrapper {
-        width: 200px; /* ✅ DESKTOP WIDTH */
-        display: flex;
-        flex-direction: column;
-        border-left: 1px solid #333;
-        background: #111;
-      }
-
-      .chat-messages {
-        flex: 1;
-        overflow-y: auto; /* ✅ only chat scrolls */
-        padding: 8px;
-        -webkit-overflow-scrolling: touch;
-      }
-
-      .chat-input {
-        display: flex;
-        position: sticky; /* ✅ stays above keyboard */
-        bottom: 0;
-        background: #111;
-        border-top: 1px solid #333;
-      }
-
-      .chat-input input {
-        flex: 1;
-        padding: 12px;
-        border: none;
-        outline: none;
-        background: #222;
-        color: #fff;
-        font-size: 16px; /* prevents iOS zoom */
-      }
-
-      .chat-input button {
-        width: 60px;
-        border: none;
-        background: #444;
-        color: #fff;
-      }
-
-      /* CHAT BUBBLES */
-      .msg {
-        margin: 6px 0;
-        max-width: 85%;
-        word-wrap: break-word;
-        font-size: 14px;
-      }
-
-      .me {
-        align-self: flex-end;
-        background: #2a7cff;
-        padding: 6px 8px;
-        border-radius: 12px 12px 0 12px;
-      }
-
-      .friend {
-        align-self: flex-start;
-        background: #333;
-        padding: 6px 8px;
-        border-radius: 12px 12px 12px 0;
-      }
-
-      /* 📱 MOBILE OVERRIDES */
-      @media (max-width: 768px) {
-        .page {
-          flex-direction: column; /* video on top, chat below */
-          height: auto; /* allow page to grow */
-          position: fixed;
-          top: 4px;
-          left: 0;
-          right: 0;
-        }
-
-        .video-wrapper {
-          flex: 0 0 auto;
-        }
-
-        .chat-wrapper {
-          width: 100%; /* full width chat */
-          /* flex: 1; */
-          border-left: none;
-          border-top: 1px solid #333;
-          height: 228px;
-        }
-      }
-
-      /* ===== Desktop chat scrollbar (dark) ===== */
-      .chat-messages::-webkit-scrollbar {
-        width: 8px;
-      }
-
-      .chat-messages::-webkit-scrollbar-track {
-        background: #111; /* same as chat background */
-      }
-
-      .chat-messages::-webkit-scrollbar-thumb {
-        background-color: #444;
-        border-radius: 4px;
-      }
-
-      .chat-messages::-webkit-scrollbar-thumb:hover {
-        background-color: #666;
-      }
-
-      /* Firefox support */
-      .chat-messages {
-        scrollbar-width: thin;
-        scrollbar-color: #444 #111;
-      }
-    </style>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="theme-color" content="#1a1220" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>Just us</title>
+    <link rel="icon" href="/icon.svg" />
+    <link rel="stylesheet" href="/app.css" />
   </head>
-
   <body>
-    <h2>🎬 Watch Together</h2>
+    <header class="bar">
+      <h1 class="title">Just us</h1>
+      <div class="seats" id="seats"></div>
+      <div class="spacer"></div>
+      <nav class="sources" aria-label="What to watch">
+        <button class="chip" data-open="link">Paste link</button>
+        <button class="chip" data-open="library">Library</button>
+        <button class="chip" data-open="share" id="shareBtn" hidden>Share tab</button>
+        <button class="chip" data-open="other">Netflix &amp; other apps</button>
+        <button class="chip quiet hide-chat" id="toggleChat">Hide chat</button>
+        <button class="chip panic" id="panicBtn" title="Blank both screens (P)">Panic</button>
+      </nav>
+    </header>
 
-    <div class="page">
-      <!-- VIDEO -->
-      <div class="video-wrapper">
-        <video id="video" controls playsinline>
-          <source src="/video" type="video/mp4" />
-        </video>
-      </div>
+    <main class="page" id="page">
+      <section class="stage" id="stage">
+        <video id="video" playsinline controls preload="auto"></video>
 
-      <!-- CHAT (RIGHT SIDE ON DESKTOP) -->
-      <div class="chat-wrapper">
-        <div id="chat" class="chat-messages"></div>
-        <div class="chat-input">
-          <input id="msg" placeholder="Type message..." />
-          <button onclick="send()">Send</button>
+        <div class="empty" id="empty">
+          <h2>Pick something to watch together</h2>
+          <p>Paste a link from almost any site, play a movie from the Mac, or sync Netflix and other apps.</p>
+          <div class="row">
+            <button class="btn" data-open="link">Paste link</button>
+            <button class="btn ghost" data-open="library">Library</button>
+          </div>
         </div>
-      </div>
-    </div>
+
+        <div class="card" id="extCard" hidden>
+          <h2 id="extTitle"></h2>
+          <p id="extHint"></p>
+          <div class="time" id="extTime"></div>
+          <div class="row">
+            <button class="btn" id="cdPlay">Play together</button>
+            <button class="btn ghost" id="cdPause">Pause together</button>
+            <button class="btn ghost" id="extStop">Done</button>
+          </div>
+        </div>
+
+        <div class="card" id="shareCard" hidden>
+          <h2>You're sharing a tab</h2>
+          <p>Play the video in that tab. Sound and picture go straight to the other phone.</p>
+          <div class="row"><button class="btn" id="stopShare">Stop sharing</button></div>
+        </div>
+
+        <p class="status" id="status" hidden></p>
+        <button class="tap" id="tap" hidden><span>Tap to sync</span></button>
+
+        <div class="stage-tools">
+          <button class="icon-btn" id="theatreBtn" title="Big screen with chat (F)" aria-label="Big screen with chat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+          </button>
+          <button class="icon-btn" id="stopBtn" title="Stop video" aria-label="Stop video" hidden>
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          </button>
+        </div>
+
+        <div class="overlay-chat" id="overlayChat">
+          <div id="overlayMsgs"></div>
+          <form id="overlayForm" autocomplete="off"><input id="overlayInput" placeholder="Say something…" enterkeyhint="send" /></form>
+        </div>
+      </section>
+
+      <aside class="chat" id="chat">
+        <div class="messages" id="messages"><p class="msg-empty" id="msgEmpty">Messages stay on this Mac only while it's running.</p></div>
+        <div class="typing" id="typing"></div>
+        <form class="compose" id="compose" autocomplete="off">
+          <input id="msg" placeholder="Message" enterkeyhint="send" aria-label="Message" />
+          <button type="submit">Send</button>
+        </form>
+      </aside>
+    </main>
+
+    <div class="sheet-backdrop" id="sheet" hidden></div>
+    <div class="countdown" id="countdown" hidden></div>
+    <div class="panic-cover" id="panicCover" hidden>double tap</div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="client.js"></script>
-
-    <script>
-      // ENTER KEY SEND
-      document.getElementById("msg").addEventListener("keydown", (e) => {
-        if (e.key === "Enter") send();
-      });
-    </script>
+    <script type="module" src="/js/main.js"></script>
   </body>
 </html>

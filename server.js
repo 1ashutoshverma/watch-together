@@ -1,69 +1,48 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const path = require("path");
-const fs = require("fs");
+const { spawn } = require("child_process");
+const qrcode = require("qrcode-terminal");
+const { loadConfig } = require("./src/config");
+const { createServer } = require("./src/app");
+const { startTunnel } = require("./src/tunnel");
+const temp = require("./src/media/temp");
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+const config = loadConfig();
+temp.wipeAll();
+const { server, manager } = createServer(config);
+const children = [];
 
-const PORT = 3000;
-const ROOM_ID = "private-room"; // simple guard
+function shutdown() {
+  manager.stop();
+  temp.wipeAll();
+  for (const c of children) {
+    try {
+      c.kill();
+    } catch {}
+  }
+  process.exit(0);
+}
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+process.on("uncaughtException", (e) => console.error("Error:", e.message));
 
-app.use(express.static("public"));
+server.listen(config.port, "127.0.0.1", () => {
+  console.log(`\n  Watch Together running on http://localhost:${config.port}`);
+  console.log(`  Library folder: ${config.mediaDir}`);
+  console.log(config.generatedPassword ? `  Room password (random, set ROOM_PASSWORD in .env to fix it): ${config.password}` : "  Room password: from ROOM_PASSWORD");
 
-// Stream local movie with range support (IMPORTANT)
-app.get("/video", (req, res) => {
-  const videoPath = path.join(__dirname, "movie_hindi.mp4");
-  const stat = fs.statSync(videoPath);
-  const fileSize = stat.size;
-  const range = req.headers.range;
-
-  const mimeType = "video/mp4";
-
-  if (!range) {
-    res.writeHead(200, {
-      "Content-Length": fileSize,
-      "Content-Type": mimeType,
-    });
-    fs.createReadStream(videoPath).pipe(res);
-    return;
+  if (process.platform === "darwin") {
+    const c = spawn("caffeinate", ["-i", "-w", String(process.pid)], { stdio: "ignore" });
+    c.on("error", () => {});
+    children.push(c);
   }
 
-  const parts = range.replace(/bytes=/, "").split("-");
-  const start = parseInt(parts[0], 10);
-  const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-  const chunkSize = end - start + 1;
-  const file = fs.createReadStream(videoPath, { start, end });
-
-  res.writeHead(206, {
-    "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-    "Accept-Ranges": "bytes",
-    "Content-Length": chunkSize,
-    "Content-Type": mimeType,
-  });
-
-  file.pipe(res);
-});
-
-// WebSocket logic
-io.on("connection", (socket) => {
-  socket.on("join-room", (room) => {
-    if (room !== ROOM_ID) return;
-    socket.join(room);
-  });
-
-  socket.on("video-event", (data) => {
-    socket.to(ROOM_ID).emit("video-event", data);
-  });
-
-  socket.on("chat", (msg) => {
-    socket.to(ROOM_ID).emit("chat", msg);
-  });
-});
-
-server.listen(PORT, () => {
-  console.log(`Server running → http://localhost:${PORT}`);
+  if (config.noTunnel) return console.log("  Tunnel off (NO_TUNNEL=1)\n");
+  console.log("  Starting secure tunnel…");
+  children.push(
+    startTunnel(config.port, (url) => {
+      if (!url) return console.log("  Couldn't start cloudflared. Install it: brew install cloudflared");
+      console.log(`\n  Open on both phones:  ${url}\n`);
+      qrcode.generate(url, { small: true });
+      console.log("  Press Ctrl+C to stop. Temp files are deleted on exit.\n");
+    })
+  );
 });

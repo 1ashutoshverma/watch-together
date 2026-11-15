@@ -1,3 +1,7 @@
 node_modules
 movie_hindi.mp4
 movie_english.mp4
+.env
+*.mp4
+*.mkv
+.DS_Store
