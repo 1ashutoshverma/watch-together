@@ -9,7 +9,7 @@ const { mediaRoutes } = require("./media/routes");
 const { attachSockets } = require("./sockets");
 
 const PUBLIC = path.join(__dirname, "..", "public");
-const OPEN_FILES = new Set(["/login.html", "/login.js", "/app.css", "/icon.svg"]);
+const OPEN_FILES = new Set(["/login.html", "/login.js", "/app.css", "/icon.svg", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png"]);
 
 function createServer(config) {
   const app = express();

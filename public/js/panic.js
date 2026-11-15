@@ -8,7 +8,7 @@ export function createPanic({ socket, video }) {
       video.pause();
     } catch {}
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    document.body.classList.remove("theatre");
+    document.body.classList.remove("full");
     cover.hidden = false;
     document.title = "Notes";
   }
@@ -17,7 +17,6 @@ export function createPanic({ socket, video }) {
     document.title = "Just us";
   }
 
-  document.getElementById("panicBtn").addEventListener("click", () => socket.emit("panic"));
   socket.on("panic", blank);
   cover.addEventListener("click", () => {
     const t = Date.now();

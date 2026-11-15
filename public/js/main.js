@@ -6,6 +6,7 @@ import { createSources } from "./sources.js";
 import { createCountdown } from "./countdown.js";
 import { createPanic } from "./panic.js";
 import { createShare, canShare } from "./share.js";
+import { trackViewport } from "./viewport.js";
 
 const $ = (id) => document.getElementById(id);
 const video = $("video");
@@ -23,12 +24,36 @@ const player = createPlayer(video);
 const sync = createSync({ video, socket, onNeedTap: (show) => (tap.hidden = !show) });
 const share = createShare({ socket, player, onError: (m) => setStatus(m, "error"), onBlocked: () => (tap.hidden = false) });
 
-createChat({ socket, me: () => me });
-createSources({ socket, onShare: () => share.start() });
+trackViewport();
+const chat = createChat({ socket, me: () => me });
 createCountdown({ socket });
 createPanic({ socket, video });
 syncClock(socket);
-$("shareBtn").hidden = !canShare();
+
+const isWide = () => window.matchMedia("(min-width: 901px)").matches;
+createSources({
+  socket,
+  onShare: () => share.start(),
+  canShare,
+  actions: {
+    status: () => ({
+      full: document.body.classList.contains("full"),
+      appFull: !!document.fullscreenElement && !document.body.classList.contains("full"),
+      appFullMode: standalone ? "installed" : isIPhone || !document.documentElement.requestFullscreen ? "install" : "api",
+      wide: isWide(),
+      chatHidden: $("page").classList.contains("chat-hidden"),
+      hasMedia: !!(room && room.media),
+    }),
+    run(action) {
+      if (action === "full") toggleFull();
+      else if (action === "appfull") toggleAppFull();
+      else if (action === "chat") chat.toggleHidden();
+      else if (action === "stop") socket.emit("stop-media");
+      else if (action === "panic") socket.emit("panic");
+      else if (action === "out") fetch("/api/logout", { method: "POST" }).finally(() => location.replace("/login.html"));
+    },
+  },
+});
 
 function setStatus(text, kind = "", ms = 0) {
   clearTimeout(statusTimer);
@@ -74,9 +99,9 @@ function render(state) {
   $("empty").hidden = !!m;
   $("extCard").hidden = !external;
   $("shareCard").hidden = !sharingSelf;
-  $("stopBtn").hidden = !m;
   video.hidden = !(videoMode || (kind === "share" && !sharingSelf));
   if (!videoMode) tap.hidden = true;
+  document.body.classList.toggle("video-on", !video.hidden);
 
   if (videoMode) {
     share.leaveView();
@@ -137,21 +162,58 @@ tap.addEventListener("click", () => {
   else sync.tapToSync();
 });
 $("stopShare").addEventListener("click", () => share.stop());
-$("stopBtn").addEventListener("click", () => socket.emit("stop-media"));
 
-// Big screen with chat overlay: real fullscreen where supported, CSS theatre on iPhone.
-function toggleTheatre() {
-  if (document.fullscreenElement) return document.exitFullscreen();
-  if (document.body.classList.contains("theatre")) return document.body.classList.remove("theatre");
-  if (stage.requestFullscreen && !/iPhone/.test(navigator.userAgent)) {
-    stage.requestFullscreen().catch(() => document.body.classList.add("theatre"));
-  } else document.body.classList.add("theatre");
+// Two kinds of full screen:
+//  - video full screen (body.full): picture fills the screen, chat floats on it.
+//  - app full screen: browser bars hidden, normal layout (video + chat) with more room.
+// iPhone Safari can't hide its bars from a web page; there, app full screen = "Add to Home Screen".
+const isIPhone = /iPhone|iPod/.test(navigator.userAgent);
+const standalone = matchMedia("(display-mode: fullscreen), (display-mode: standalone)").matches || navigator.standalone === true;
+let fsReason = null; // why the browser is in real fullscreen: "video" | "app"
+
+function enterBrowserFullscreen(reason) {
+  const el = document.documentElement;
+  if (!el.requestFullscreen || isIPhone) return false;
+  fsReason = reason;
+  el.requestFullscreen({ navigationUI: "hide" }).catch(() => (fsReason = null));
+  return true;
 }
-$("theatreBtn").addEventListener("click", toggleTheatre);
+function exitBrowserFullscreen() {
+  fsReason = null;
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+
+function toggleFull() {
+  if (document.body.classList.contains("full")) {
+    document.body.classList.remove("full");
+    if (fsReason === "video") exitBrowserFullscreen();
+    return;
+  }
+  document.body.classList.add("full");
+  if (!document.fullscreenElement) enterBrowserFullscreen("video");
+}
+
+function toggleAppFull() {
+  if (document.fullscreenElement) {
+    document.body.classList.remove("full");
+    return exitBrowserFullscreen();
+  }
+  if (!enterBrowserFullscreen("app")) return "unsupported";
+}
+
+document.addEventListener("fullscreenchange", () => {
+  if (!document.fullscreenElement) {
+    fsReason = null;
+    document.body.classList.remove("full");
+  }
+});
+$("fullBtn").addEventListener("click", toggleFull);
+
 document.addEventListener("keydown", (e) => {
   if (/input|textarea/i.test(document.activeElement?.tagName || "")) return;
-  if (e.key === "f" || e.key === "F") toggleTheatre();
-  else if (e.key === "Escape" && document.body.classList.contains("theatre")) document.body.classList.remove("theatre");
+  if (!$("sheet").hidden) return;
+  if (e.key === "f" || e.key === "F") toggleFull();
+  else if (e.key === "Escape" && document.body.classList.contains("full")) toggleFull();
   else if (e.key === " " && !video.hidden) {
     e.preventDefault();
     video.paused ? video.play().catch(() => {}) : video.pause();

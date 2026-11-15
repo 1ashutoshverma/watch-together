@@ -14,6 +14,8 @@
   --radius-l: 22px;
   --title: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
   --body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Visible height. JS keeps --app-h equal to the visual viewport so the keyboard never pushes the video away. */
+  --app-h: 100dvh;
   color-scheme: dark;
 }
 
@@ -26,57 +28,30 @@ body {
   font: 15px/1.45 var(--body);
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 button, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--lamp); outline-offset: 2px; }
 [hidden] { display: none !important; }
 
-/* ---------- top bar ---------- */
-.bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  padding-top: max(10px, env(safe-area-inset-top));
+/* The app is pinned to the visible area. */
+.app {
+  position: fixed;
+  left: 0; right: 0; top: 0;
+  height: var(--app-h);
+  will-change: transform;
 }
-.title { font: 600 19px/1 var(--title); letter-spacing: -0.01em; margin: 0; white-space: nowrap; }
-.seats { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); min-width: 0; }
-.seat { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.seat::before {
-  content: "";
-  width: 9px; height: 9px; border-radius: 50%;
-  background: var(--line);
-  flex: none;
-  transition: background 0.4s, box-shadow 0.4s;
-}
-.seat.on { color: var(--text); }
-.seat.on::before { background: var(--lamp); box-shadow: 0 0 0 4px rgba(242, 166, 90, 0.18); }
-.seat.her.on::before { background: #b58ad8; box-shadow: 0 0 0 4px rgba(181, 138, 216, 0.2); }
-.spacer { flex: 1; }
 
-.sources { display: flex; gap: 6px; }
-.chip {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: 999px;
-  padding: 7px 14px;
-  font-size: 14px;
-  white-space: nowrap;
-}
-.chip:hover { background: var(--raised); }
-.chip.quiet { background: transparent; }
-.chip.panic { border-color: transparent; background: transparent; color: var(--muted); }
-
-/* ---------- layout ---------- */
+/* ---------- layout: laptop ---------- */
 .page {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: 12px;
-  padding: 0 16px 16px;
-  height: calc(100% - 58px);
+  padding: 12px;
+  height: 100%;
 }
-.page.chat-hidden { grid-template-columns: 1fr 0; gap: 0; }
+.page.chat-hidden { grid-template-columns: minmax(0, 1fr); }
 .page.chat-hidden .chat { display: none; }
 
 .stage {
@@ -96,10 +71,10 @@ video { width: 100%; height: 100%; object-fit: contain; display: block; backgrou
   left: 16px; right: 16px; top: 14px;
   margin: 0 auto;
   width: fit-content;
-  max-width: calc(100% - 32px);
+  max-width: calc(100% - 120px);
   background: rgba(26, 18, 32, 0.88);
   border: 1px solid var(--line);
-  padding: 8px 14px;
+  padding: 7px 14px;
   border-radius: 999px;
   font-size: 14px;
   z-index: 4;
@@ -137,14 +112,24 @@ video { width: 100%; height: 100%; object-fit: contain; display: block; backgrou
 }
 .tap span { background: var(--lamp); color: var(--lamp-ink); font-weight: 700; padding: 14px 26px; border-radius: 999px; }
 
-.stage-tools { position: absolute; right: 12px; top: 12px; z-index: 3; display: flex; gap: 6px; opacity: 0; transition: opacity 0.2s; }
-.stage:hover .stage-tools, .stage:focus-within .stage-tools, .theatre .stage-tools { opacity: 1; }
+.stage-tools {
+  position: absolute; right: 10px; top: 10px; z-index: 6;
+  display: flex; gap: 6px;
+  opacity: 0; transition: opacity 0.2s;
+}
+.stage:hover .stage-tools, .stage:focus-within .stage-tools, .full .stage-tools, .chat-hidden .stage-tools { opacity: 1; }
 .icon-btn {
   width: 38px; height: 38px; border-radius: 50%;
-  border: 0; background: rgba(26, 18, 32, 0.75); display: grid; place-items: center;
+  border: 0; background: rgba(26, 18, 32, 0.72); display: grid; place-items: center;
   backdrop-filter: blur(6px);
+  flex: none;
 }
-.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn.flat { background: transparent; width: 36px; height: 36px; }
+.icon-btn.flat:hover { background: var(--raised); }
+.icon-btn svg { width: 19px; height: 19px; }
+#fullBtn .i-exit { display: none; }
+.full #fullBtn .i-enter { display: none; }
+.full #fullBtn .i-exit { display: block; }
 
 /* ---------- chat ---------- */
 .chat {
@@ -154,55 +139,98 @@ video { width: 100%; height: 100%; object-fit: contain; display: block; backgrou
   min-height: 0;
   overflow: hidden;
 }
+.chat-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 6px 6px 14px;
+  border-bottom: 1px solid var(--line);
+  min-height: 46px;
+}
+.seats { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); min-width: 0; }
+.seat { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 11ch; }
+.seat::before {
+  content: "";
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--line);
+  flex: none;
+  transition: background 0.4s, box-shadow 0.4s;
+}
+.seat.on { color: var(--text); }
+.seat.on::before { background: var(--lamp); box-shadow: 0 0 0 3px rgba(242, 166, 90, 0.18); }
+.seat.her.on::before { background: #b58ad8; box-shadow: 0 0 0 3px rgba(181, 138, 216, 0.2); }
+.typing { flex: 1; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 .messages {
-  flex: 1; overflow-y: auto; padding: 14px 12px;
+  flex: 1; overflow-y: auto; padding: 12px;
   display: flex; flex-direction: column; gap: 4px;
   overscroll-behavior: contain;
   scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  min-height: 0;
 }
 .msg { max-width: 82%; padding: 7px 12px; border-radius: 18px; word-wrap: break-word; white-space: pre-wrap; }
 .msg.me { align-self: flex-end; background: var(--lamp); color: var(--lamp-ink); border-bottom-right-radius: 6px; }
 .msg.them { align-self: flex-start; background: var(--plum); border-bottom-left-radius: 6px; }
-.msg + .msg.me, .msg + .msg.them { margin-top: 0; }
 .msg.me + .msg.them, .msg.them + .msg.me { margin-top: 8px; }
 .msg-empty { margin: auto; color: var(--muted); font-size: 14px; text-align: center; max-width: 24ch; }
-.typing { font-size: 12px; color: var(--muted); padding: 0 14px 6px; min-height: 18px; }
-.compose { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+.compose { display: flex; gap: 8px; padding: 8px; border-top: 1px solid var(--line); }
 .compose input {
   flex: 1; min-width: 0;
   background: var(--room); border: 1px solid var(--line); border-radius: 999px;
-  padding: 10px 14px; font-size: 16px; outline: none;
+  padding: 9px 14px; font-size: 16px; outline: none;
 }
 .compose input:focus { border-color: var(--lamp); }
 .compose button { border: 0; background: var(--lamp); color: var(--lamp-ink); border-radius: 999px; padding: 0 16px; font-weight: 600; }
 
-/* ---------- theatre / fullscreen with overlay chat ---------- */
+/* ---------- full screen (any device) with floating chat ---------- */
 .overlay-chat { display: none; }
-.theatre .page { display: block; padding: 0; height: 100%; }
-.theatre .bar { display: none; }
-.theatre .chat { display: none; }
-.theatre .stage { position: fixed; inset: 0; border-radius: 0; z-index: 10; }
-.theatre .overlay-chat, .stage:fullscreen .overlay-chat {
-  display: flex; flex-direction: column; gap: 4px;
-  position: absolute; left: 12px; bottom: 64px; z-index: 6;
-  width: min(360px, 60%);
+.full .page { display: block; padding: 0; }
+.full .chat { display: none; }
+.full .stage { position: absolute; inset: 0; border-radius: 0; aspect-ratio: auto; }
+.full .overlay-chat {
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+  position: absolute; z-index: 6;
+  left: max(10px, env(safe-area-inset-left)); bottom: max(10px, env(safe-area-inset-bottom));
+  width: min(380px, calc(100% - 20px));
   pointer-events: none;
 }
-.overlay-chat .msg { pointer-events: none; opacity: 0.92; animation: fadeOut 9s forwards; backdrop-filter: blur(6px); }
-.overlay-chat .msg.them { background: rgba(93, 63, 121, 0.85); }
-.overlay-chat .msg.me { background: rgba(242, 166, 90, 0.88); }
-.overlay-chat form { pointer-events: auto; display: flex; gap: 6px; margin-top: 6px; }
-.overlay-chat input {
-  flex: 1; min-width: 0; background: rgba(26, 18, 32, 0.8); border: 1px solid var(--line);
-  border-radius: 999px; padding: 9px 14px; font-size: 16px; outline: none;
+.full .status { top: max(14px, env(safe-area-inset-top)); }
+.full .stage-tools { top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); }
+/* Leave room for the native video controls under the chat. */
+.full.video-on .overlay-chat { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 52px); }
+.overlay-msgs {
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; overflow: hidden;
+  /* Older bubbles fade out at the top instead of being cut. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 28px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 28px);
+  padding-top: 20px;
 }
-@keyframes fadeOut { 0%, 75% { opacity: 0.92; } 100% { opacity: 0; } }
+/* Laptop with chat hidden: messages float over the video so nothing is missed. */
+.chat-hidden .overlay-chat {
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+  position: absolute; z-index: 6; left: 14px; bottom: 64px; width: min(360px, 40%); pointer-events: none;
+}
+.overlay-chat .msg { opacity: 0.94; animation: fadeOut 9s forwards; backdrop-filter: blur(6px); }
+.overlay-chat .msg.them { background: rgba(93, 63, 121, 0.85); }
+.overlay-chat .msg.me { background: rgba(242, 166, 90, 0.9); }
+.overlay-chat form { pointer-events: auto; display: flex; }
+.overlay-chat input {
+  flex: 1; min-width: 0; background: rgba(26, 18, 32, 0.7); border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px; padding: 8px 14px; font-size: 16px; outline: none;
+  backdrop-filter: blur(6px);
+}
+.overlay-chat input:focus { border-color: var(--lamp); background: rgba(26, 18, 32, 0.9); }
+.overlay-chat .msg.keep { animation: none; opacity: 1; }
+@keyframes fadeOut { 0%, 75% { opacity: 0.94; } 100% { opacity: 0; } }
 
-/* ---------- sheets ---------- */
-.sheet-backdrop { position: fixed; inset: 0; background: rgba(8, 4, 10, 0.6); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 16px; }
+/* ---------- sheets (menu, link, library…) ---------- */
+.sheet-backdrop {
+  position: fixed; left: 0; right: 0; top: 0; height: var(--app-h);
+  background: rgba(8, 4, 10, 0.6); z-index: 40;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
 .sheet {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-l);
-  width: min(520px, 100%); max-height: min(80vh, 640px); overflow: auto; padding: 20px;
+  width: min(520px, 100%); max-height: min(85%, 640px); overflow: auto; padding: 20px;
+  overscroll-behavior: contain;
 }
 .sheet h3 { margin: 0 0 4px; font: 600 20px/1.2 var(--title); }
 .sheet p.hint { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
@@ -221,9 +249,25 @@ video { width: 100%; height: 100%; object-fit: contain; display: block; backgrou
 .lib-list button:hover { background: var(--raised); }
 .lib-list small { color: var(--muted); white-space: nowrap; }
 
+.steps { margin: 0 0 14px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.menu { padding: 10px; width: min(380px, 100%); }
+.menu-group { display: flex; flex-direction: column; gap: 2px; }
+.menu-group + .menu-group { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+.menu-item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; text-align: left; border: 0; background: transparent;
+  padding: 11px 12px; border-radius: var(--radius-m); font-size: 15px;
+}
+.menu-item:hover, .menu-item:focus-visible { background: var(--raised); }
+.menu-item svg { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.menu-item small { margin-left: auto; color: var(--muted); font-size: 12px; }
+.menu-item.danger { color: #ffb3b3; }
+.menu-item.danger svg { color: #ffb3b3; }
+
 /* ---------- countdown + panic ---------- */
 .countdown {
-  position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+  position: fixed; left: 0; right: 0; top: 0; height: var(--app-h); z-index: 50;
+  display: flex; align-items: center; justify-content: center;
   background: rgba(10, 6, 14, 0.82); pointer-events: none;
   font: 700 min(40vw, 260px)/1 var(--title); color: var(--lamp); font-variant-numeric: tabular-nums;
 }
@@ -238,40 +282,71 @@ video { width: 100%; height: 100%; object-fit: contain; display: block; backgrou
 .login .btn { width: 100%; margin-top: 6px; padding: 13px; }
 .login .err { color: var(--danger); font-size: 14px; min-height: 20px; margin: 8px 0 0; }
 
-/* ---------- phone ---------- */
+/* ---------- phone portrait: video edge to edge on top, chat fills the rest ---------- */
 @media (max-width: 900px) {
-  body { overflow: hidden; }
-  .bar { flex-wrap: wrap; row-gap: 8px; padding-bottom: 8px; }
-  .sources { order: 3; width: 100%; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-  .sources::-webkit-scrollbar { display: none; }
   .page {
-    display: flex; flex-direction: column; gap: 10px; padding: 0 10px 10px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    height: calc(100% - 104px);
+    display: flex; flex-direction: column; gap: 0; padding: 0;
   }
-  .stage { flex: none; aspect-ratio: 16 / 9; border-radius: var(--radius-m); }
-  .chat { flex: 1; border-radius: var(--radius-m); }
+  .stage {
+    flex: none;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    /* Never let the video take so much height that chat can't fit (very short screens / keyboard open). */
+    max-height: calc(var(--app-h) - 150px);
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top);
+    box-sizing: content-box;
+  }
+  .chat { flex: 1; border-radius: 0; }
   .page.chat-hidden .chat { display: flex; }
-  .hide-chat { display: none; }
-  .stage-tools { opacity: 1; }
-  .empty h2, .card h2 { font-size: 19px; }
+  .stage-tools { opacity: 1; top: calc(env(safe-area-inset-top) + 8px); right: 8px; }
+  /* In portrait the menu lives in the chat strip; the video corner only keeps full screen. */
+  .stage-tools [data-menu] { display: none; }
+  .full .stage-tools [data-menu] { display: grid; }
+  /* Typing: give the strip's height to messages. */
+  .kb-open .chat-head { display: none; }
+  .card p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .icon-btn { width: 34px; height: 34px; }
+  .chat-head { min-height: 42px; padding: 4px 4px 4px 12px; }
+  .messages { padding: 10px; }
+  .compose { padding: 6px 8px; padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+  .kb-open .compose { padding-bottom: 6px; }
+  .compose input { padding: 8px 14px; }
+  .empty, .card { gap: 8px; padding: 12px 16px; }
+  .empty h2, .card h2 { font-size: 18px; }
   .empty p, .card p { font-size: 13px; }
-  .card { gap: 8px; padding: 14px; }
-  .card .time { font-size: 30px; }
-  .btn { padding: 9px 16px; }
+  .card .time { font-size: 28px; }
+  .btn { padding: 8px 16px; }
+  .status { font-size: 13px; padding: 6px 12px; top: calc(env(safe-area-inset-top) + 10px); max-width: calc(100% - 110px); left: 10px; right: auto; margin: 0; }
+
+  /* Sheets come up from the bottom on phones. */
+  .sheet-backdrop { align-items: flex-end; padding: 0; }
+  .sheet { border-radius: var(--radius-l) var(--radius-l) 0 0; width: 100%; max-height: 85%; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .menu { width: 100%; }
+  .full .stage { padding-top: 0; box-sizing: border-box; max-height: none; }
 }
 
-@media (orientation: landscape) and (max-height: 500px) {
-  .bar { display: none; }
-  .page { display: block; padding: 0; height: 100%; }
-  .chat { display: none !important; }
-  .stage { position: fixed; inset: 0; border-radius: 0; aspect-ratio: auto; }
-  .overlay-chat {
-    display: flex; flex-direction: column; gap: 4px;
-    position: absolute; left: max(12px, env(safe-area-inset-left)); bottom: 56px; z-index: 6;
-    width: min(320px, 45%); pointer-events: none;
-  }
+/* Portrait full screen: keep floating chat in the black band under the picture, not on it. */
+@media (max-width: 900px) {
+  /* Black band under a centred 16:9 picture, minus the input and the video controls. */
+  body:not(.phone-landscape).full .overlay-msgs { max-height: max(70px, calc((var(--app-h) - 56.25vw) / 2 - 112px)); }
+  body:not(.phone-landscape).full.kb-open .overlay-msgs { max-height: 90px; }
 }
+
+/* Phone on its side (set by JS, see viewport.js): full screen with floating chat, automatically. */
+.phone-landscape .page { display: block; padding: 0; }
+.phone-landscape .chat { display: none !important; }
+.phone-landscape .stage { position: absolute; inset: 0; border-radius: 0; aspect-ratio: auto; max-height: none; padding: 0; box-sizing: border-box; }
+.phone-landscape .stage-tools { opacity: 1; top: 8px; right: max(8px, env(safe-area-inset-right)); }
+.phone-landscape .stage-tools [data-menu] { display: grid; }
+.phone-landscape .overlay-chat {
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+  position: absolute; z-index: 6;
+  left: max(10px, env(safe-area-inset-left)); bottom: 68px;
+  width: min(340px, 42%); pointer-events: none;
+}
+.phone-landscape .overlay-msgs { max-height: calc(var(--app-h) - 150px); }
+.phone-landscape.kb-open .overlay-chat { bottom: 8px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation-duration: 0.01s !important; }
