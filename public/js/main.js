@@ -32,8 +32,23 @@ syncClock(socket);
 
 const isWide = () => window.matchMedia("(min-width: 901px)").matches;
 let watchHistory = [];
-socket.on("history", (items) => (watchHistory = items || []));
-createSources({
+socket.on("history", (items) => {
+  watchHistory = items || [];
+  renderContinue();
+});
+// Start screen: offer to continue the last thing watched tonight.
+function renderContinue() {
+  const btn = $("continueBtn");
+  const last = watchHistory.find((i) => !i.current);
+  btn.hidden = !last;
+  if (!last) return;
+  btn.innerHTML = `<small>Continue watching</small><strong></strong><small class="c-meta"></small>`;
+  btn.querySelector("strong").textContent = last.title;
+  const more = watchHistory.filter((i) => !i.current).length - 1;
+  btn.querySelector(".c-meta").textContent = [last.position > 1 ? `Stopped at ${fmtTime(last.position)}` : "", more > 0 ? `${more} more in Menu → Watched tonight` : ""].filter(Boolean).join(" · ");
+  btn.onclick = () => socket.emit("resume", { key: last.key });
+}
+const sources = createSources({
   socket,
   history: { items: () => watchHistory, currentPosition: () => sync.expectedPosition() },
   onShare: () => share.start(),

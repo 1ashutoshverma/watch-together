@@ -128,40 +128,56 @@ export function createChat({ socket, me }) {
     overlay.querySelectorAll(".keep").forEach((n) => n.remove());
   });
 
-  // ---------- picker (emoji / GIFs) ----------
-  let mode = null; // "emoji" | "gif" | null
+  // ---------- picker: one button, Emoji | GIFs tabs ----------
+  let open = false;
+  let lastTab = "emoji";
   let gifSearchOn = null; // unknown until first open
   let gifTimer = null;
+  const emojiBtn = $("emojiBtn");
 
   function closePicker() {
-    mode = null;
+    open = false;
     picker.hidden = true;
     picker.innerHTML = "";
-    $("emojiBtn").classList.remove("on");
-    $("gifBtn").classList.remove("on");
+    emojiBtn.classList.remove("on");
   }
-  function openPicker(next) {
-    if (mode === next) {
-      closePicker();
-      input.focus();
-      return;
-    }
-    mode = next;
-    // The picker takes the keyboard's place: close the keyboard so the video stays in view.
+  function openPicker(tab = lastTab) {
+    open = true;
+    lastTab = tab;
+    // On phones the panel takes the keyboard's place, so the video stays in view.
     if (matchMedia("(pointer: coarse)").matches) input.blur();
     picker.hidden = false;
-    $("emojiBtn").classList.toggle("on", next === "emoji");
-    $("gifBtn").classList.toggle("on", next === "gif");
-    next === "emoji" ? renderEmoji() : renderGifs();
+    emojiBtn.classList.add("on");
+    picker.innerHTML = `
+      <div class="p-switch" role="tablist">
+        <button type="button" role="tab" data-mode="emoji" class="${tab === "emoji" ? "on" : ""}">Emoji</button>
+        <button type="button" role="tab" data-mode="gif" class="${tab === "gif" ? "on" : ""}">GIFs</button>
+      </div>
+      <div class="p-body"></div>`;
+    picker.querySelector(".p-switch").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-mode]");
+      if (b && b.dataset.mode !== lastTab) openPicker(b.dataset.mode);
+    });
+    tab === "emoji" ? renderEmoji() : renderGifs();
   }
-  $("emojiBtn").addEventListener("click", () => openPicker("emoji"));
-  $("gifBtn").addEventListener("click", () => openPicker("gif"));
-  input.addEventListener("focus", () => matchMedia("(pointer: coarse)").matches && mode && closePicker());
+  emojiBtn.addEventListener("click", () => {
+    if (open) {
+      closePicker();
+      input.focus();
+    } else openPicker();
+  });
+  input.addEventListener("focus", () => matchMedia("(pointer: coarse)").matches && open && closePicker());
+  // Sending anything closes the panel.
+  $("compose").addEventListener("submit", () => open && closePicker());
+
+  function body() {
+    return picker.querySelector(".p-body");
+  }
 
   function renderEmoji(tab = recentEmoji().length ? "recent" : "smileys") {
     const tabs = [{ key: "recent", label: "🕘", name: "Recent", items: recentEmoji() }, ...EMOJI].filter((t) => t.key !== "recent" || t.items.length);
     const cur = tabs.find((t) => t.key === tab) || tabs[0];
-    picker.innerHTML = `
+    body().innerHTML = `
       <div class="p-tabs" role="tablist">${tabs.map((t) => `<button type="button" role="tab" class="p-tab ${t.key === cur.key ? "on" : ""}" data-tab="${t.key}" title="${t.name}" aria-label="${t.name}">${t.label}</button>`).join("")}</div>
       <div class="p-grid emoji-grid">${cur.items.map((e) => `<button type="button" class="e" data-e="${e}">${e}</button>`).join("")}</div>`;
     picker.querySelector(".p-tabs").addEventListener("click", (e) => {
@@ -183,7 +199,7 @@ export function createChat({ socket, me }) {
   }
 
   async function renderGifs() {
-    picker.innerHTML = `
+    body().innerHTML = `
       <div class="p-search">
         <input type="search" placeholder="Search GIFs" aria-label="Search GIFs" enterkeyhint="search" />
         <button type="button" class="p-gallery" title="Send a photo or GIF from this device">Gallery</button>
@@ -211,7 +227,7 @@ export function createChat({ socket, me }) {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
       gifSearchOn = true;
-      if (mode !== "gif") return;
+      if (!open || lastTab !== "gif") return;
       grid.innerHTML = j.items.length ? "" : `<p class="p-note">No GIFs for "${q.replace(/</g, "&lt;")}".</p>`;
       for (const g of j.items) {
         const b = document.createElement("button");

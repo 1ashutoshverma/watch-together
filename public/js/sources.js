@@ -194,7 +194,7 @@ export function createSources({ socket, onShare, canShare, actions, history }) {
     const item = (act, ic, label, extra = "", cls = "") => `<button class="menu-item ${cls}" data-act="${act}">${icon(ic)}<span>${label}</span>${extra}</button>`;
     const node = el(`
       <div class="sheet menu" role="menu">
-        ${prev ? `<div class="menu-group">${item("back", "back", "Back to previous", `<small class="prev-title"></small>`)}${item("history", "history", "Watched tonight")}</div>` : ""}
+        <div class="menu-group">${prev ? item("back", "back", "Back to previous", `<small class="prev-title"></small>`) : ""}${item("history", "history", "Watched tonight")}</div>
         <div class="menu-group">
           ${item("link", "link", "Paste a link")}
           ${item("library", "library", "Library")}
@@ -241,5 +241,5 @@ export function createSources({ socket, onShare, canShare, actions, history }) {
     else if (k === "other") otherSheet();
   });
 
-  return { close, menu: menuSheet };
+  return { close, menu: menuSheet, history: historySheet };
 }
