@@ -55,10 +55,18 @@ function createRoom({ now = Date.now } = {}) {
     return { ...state, position: currentPosition(), updatedAt: now() };
   }
 
-  function addChat(name, text) {
-    const t = String(text || "").trim().slice(0, 1000);
-    if (!t) return null;
-    const msg = { id: crypto.randomUUID(), name, text: t, at: now() };
+  // payload: a string (text) or {text} or {kind: "image"|"gif", src, w, h}
+  function addChat(name, payload) {
+    const p = typeof payload === "string" ? { text: payload } : payload || {};
+    let msg;
+    if (p.kind === "image" || p.kind === "gif") {
+      if (typeof p.src !== "string") return null;
+      msg = { id: crypto.randomUUID(), name, kind: p.kind, src: p.src, w: p.w || null, h: p.h || null, at: now() };
+    } else {
+      const t = String(p.text || "").trim().slice(0, 1000);
+      if (!t) return null;
+      msg = { id: crypto.randomUUID(), name, text: t, at: now() };
+    }
     messages.push(msg);
     if (messages.length > CHAT_LIMIT) messages.splice(0, messages.length - CHAT_LIMIT);
     return msg;

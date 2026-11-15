@@ -74,10 +74,20 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
             </button>
           </header>
-          <div class="messages" id="messages"><p class="msg-empty" id="msgEmpty">Messages stay on this Mac only while it's running.</p></div>
+          <div class="messages-wrap">
+            <div class="messages" id="messages"><p class="msg-empty" id="msgEmpty">Messages stay on this Mac only while it's running.</p></div>
+            <button class="new-pill" id="newPill" hidden>New messages ↓</button>
+          </div>
+          <div class="picker" id="picker" hidden></div>
           <form class="compose" id="compose" autocomplete="off">
+            <button type="button" class="c-btn" id="emojiBtn" aria-label="Emoji" title="Emoji">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/></svg>
+            </button>
             <input id="msg" placeholder="Message" enterkeyhint="send" aria-label="Message" />
-            <button type="submit">Send</button>
+            <button type="button" class="c-btn gif" id="gifBtn" aria-label="GIFs and photos" title="GIFs and photos">GIF</button>
+            <button type="submit" class="send" aria-label="Send">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6l.1 6.5L15 12l-11.5 1.9z"/></svg>
+            </button>
           </form>
         </aside>
       </main>
@@ -86,6 +96,7 @@
     <div class="sheet-backdrop" id="sheet" hidden></div>
     <div class="countdown" id="countdown" hidden></div>
     <div class="panic-cover" id="panicCover" hidden>double tap</div>
+    <input type="file" id="fileInput" accept="image/*" hidden />
 
     <script src="/socket.io/socket.io.js"></script>
     <script type="module" src="/js/main.js"></script>

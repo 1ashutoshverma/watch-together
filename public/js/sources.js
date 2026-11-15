@@ -31,10 +31,22 @@ const ICONS = {
   stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
   panic: '<path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 22 12a14 14 0 0 1-3 3.6M6.6 6.6A14 14 0 0 0 2 12s4 7 10 7a9 9 0 0 0 4.4-1.2"/>',
   out: '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
+  back: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  history: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[k]}</svg>`;
 
-export function createSources({ socket, onShare, canShare, actions }) {
+function fmt(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = String(sec % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+const KIND = { link: "Link", file: "Library", external: "Other app", ext: "Extension" };
+const SITES = { netflix: "Netflix", hotstar: "Hotstar", prime: "Prime Video", jiocinema: "JioCinema", sonyliv: "SonyLIV", zee5: "ZEE5", youtube: "YouTube" };
+
+export function createSources({ socket, onShare, canShare, actions, history }) {
   const root = document.getElementById("sheet");
 
   function close() {
@@ -139,11 +151,50 @@ export function createSources({ socket, onShare, canShare, actions }) {
     show(node);
   }
 
+  function historySheet() {
+    const items = history.items();
+    const node = el(`
+      <div class="sheet">
+        <h3>Watched tonight</h3>
+        <p class="hint">Tap one to pick it up where you left off, for both of you. This list is wiped when the Mac stops.</p>
+        <ul class="hist"></ul>
+        <div class="actions">${items.some((i) => !i.current) ? '<button class="btn ghost" data-clear>Clear list</button>' : ""}<button class="btn ghost" data-close>Close</button></div>
+      </div>`);
+    const ul = node.querySelector(".hist");
+    if (!items.length) ul.innerHTML = `<li class="hint">Nothing yet. Things you watch show up here.</li>`;
+    for (const it of items) {
+      const pos = it.current ? history.currentPosition() : it.position;
+      const pct = it.duration ? Math.min(100, (pos / it.duration) * 100) : 0;
+      const where = it.kind === "link" ? it.site : it.kind === "ext" ? SITES[it.site] || it.site : "";
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <button class="hist-item" ${it.current ? "disabled" : ""}>
+          <span class="hist-title"></span>
+          <span class="hist-meta"></span>
+          ${it.duration ? `<span class="hist-bar"><span style="width:${pct.toFixed(1)}%"></span></span>` : ""}
+        </button>`;
+      li.querySelector(".hist-title").textContent = it.title;
+      li.querySelector(".hist-meta").textContent = [it.current ? "Playing now" : KIND[it.kind], where, pos > 1 ? `${it.current ? "at" : "stopped at"} ${fmt(pos)}${it.duration ? " of " + fmt(it.duration) : ""}` : ""].filter(Boolean).join(" · ");
+      li.querySelector("button").addEventListener("click", () => {
+        socket.emit("resume", { key: it.key });
+        close();
+      });
+      ul.appendChild(li);
+    }
+    node.querySelector("[data-clear]")?.addEventListener("click", () => {
+      socket.emit("history-clear");
+      close();
+    });
+    show(node);
+  }
+
   function menuSheet() {
     const s = actions.status();
+    const prev = history.items().find((i) => !i.current);
     const item = (act, ic, label, extra = "", cls = "") => `<button class="menu-item ${cls}" data-act="${act}">${icon(ic)}<span>${label}</span>${extra}</button>`;
     const node = el(`
       <div class="sheet menu" role="menu">
+        ${prev ? `<div class="menu-group">${item("back", "back", "Back to previous", `<small class="prev-title"></small>`)}${item("history", "history", "Watched tonight")}</div>` : ""}
         <div class="menu-group">
           ${item("link", "link", "Paste a link")}
           ${item("library", "library", "Library")}
@@ -160,6 +211,8 @@ export function createSources({ socket, onShare, canShare, actions }) {
         </div>
       </div>`);
     node.querySelectorAll(".kbd").forEach((k) => s.wide || k.remove());
+    const pt = node.querySelector(".prev-title");
+    if (pt && prev) pt.textContent = prev.title;
     node.addEventListener("click", (e) => {
       const b = e.target.closest("[data-act]");
       if (!b) return;
@@ -170,6 +223,8 @@ export function createSources({ socket, onShare, canShare, actions }) {
       else if (a === "other") otherSheet();
       else if (a === "share") onShare();
       else if (a === "install") installSheet();
+      else if (a === "history") historySheet();
+      else if (a === "back" && prev) socket.emit("resume", { key: prev.key });
       else actions.run(a);
     });
     show(node);

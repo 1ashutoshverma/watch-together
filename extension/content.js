@@ -126,6 +126,12 @@
         partnerTitle = m.data;
       } else if (m.type === "typing") showTyping(m.data.name);
       else if (m.type === "panic") toPage("pause");
+      else if (m.type === "media") {
+        const w = mediaWaiters.get(m.reqId);
+        mediaWaiters.delete(m.reqId);
+        if (w) w(m.dataUrl);
+        return;
+      }
       render();
     });
     port.onDisconnect.addListener(() => setTimeout(connect, 1000));
@@ -163,6 +169,8 @@
       .m { max-width: 85%; padding: 6px 10px; border-radius: 16px; white-space: pre-wrap; word-wrap: break-word; }
       .m.me { align-self: flex-end; background: #f2a65a; color: #2a1708; border-bottom-right-radius: 5px; }
       .m.them { align-self: flex-start; background: #5d3f79; border-bottom-left-radius: 5px; }
+      .m.media { padding: 3px; background: transparent !important; max-width: 70%; }
+      .m.media img { display: block; width: 100%; height: auto; max-height: 200px; object-fit: cover; border-radius: 12px; background: #2f2339; }
       .typing { font-size: 12px; color: #ab9bb3; padding: 0 12px; min-height: 16px; }
       form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid #3d2f49; }
       input { flex: 1; min-width: 0; background: #1a1220; border: 1px solid #3d2f49; border-radius: 999px; padding: 8px 12px; color: #f4ebf2; font-size: 14px; outline: none; }
@@ -226,13 +234,28 @@
     typingTimer = setTimeout(() => ($("typing").textContent = ""), 3000);
   }
 
+  const mediaWaiters = new Map();
+  let mediaReq = 0;
   function renderChat(msgs, replace = false) {
     const box = $("msgs");
     if (replace) box.innerHTML = "";
     for (const m of msgs) {
       const d = document.createElement("div");
-      d.className = `m ${m.name === me ? "me" : "them"}`;
-      d.textContent = m.text;
+      const media = m.kind === "image" || m.kind === "gif";
+      d.className = `m ${m.name === me ? "me" : "them"} ${media ? "media" : ""}`;
+      if (media) {
+        const img = document.createElement("img");
+        img.alt = m.kind === "gif" ? "GIF" : "Photo";
+        if (m.w && m.h) img.style.aspectRatio = `${m.w} / ${m.h}`;
+        const id = ++mediaReq;
+        mediaWaiters.set(id, (url) => {
+          if (url) img.src = url;
+          else d.textContent = m.kind === "gif" ? "[GIF]" : "[Photo]";
+          box.scrollTop = box.scrollHeight;
+        });
+        send("fetch-media", { src: m.src, reqId: id });
+        d.appendChild(img);
+      } else d.textContent = m.text;
       box.appendChild(d);
     }
     box.scrollTop = box.scrollHeight;

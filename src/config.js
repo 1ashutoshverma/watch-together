@@ -21,6 +21,7 @@ function loadConfig(root = path.join(__dirname, "..")) {
     port: Number(env.PORT || 3000),
     cookiesBrowser: env.YTDLP_COOKIES_BROWSER || "",
     noTunnel: env.NO_TUNNEL === "1",
+    giphyKey: env.GIPHY_API_KEY || "",
   };
 }
 

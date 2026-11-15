@@ -31,8 +31,11 @@ createPanic({ socket, video });
 syncClock(socket);
 
 const isWide = () => window.matchMedia("(min-width: 901px)").matches;
+let watchHistory = [];
+socket.on("history", (items) => (watchHistory = items || []));
 createSources({
   socket,
+  history: { items: () => watchHistory, currentPosition: () => sync.expectedPosition() },
   onShare: () => share.start(),
   canShare,
   actions: {

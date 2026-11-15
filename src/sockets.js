@@ -1,16 +1,38 @@
 const { resolveSafe } = require("./media/library");
+const { createHistory } = require("./history");
 
 const COUNTDOWN_MS = 4000;
 
-function attachSockets(io, { room, manager, mediaDir, auth }) {
+function attachSockets(io, { room, manager, mediaDir, auth, chatMedia }) {
   io.use(auth.socketMiddleware);
 
   manager.on("status", (s) => io.emit("media-status", s));
+  const history = createHistory();
 
-  async function load(fn) {
+  function historyList() {
+    const st = room.stateForJoin();
+    return history.list(st.media, st.position);
+  }
+  function emitHistory() {
+    io.emit("history", historyList());
+  }
+
+  // Every change of what's playing goes through here, so the item being left lands in history.
+  function switchTo(media, source, { position = 0, playing = false } = {}) {
+    const cur = room.stateForJoin();
+    history.record(cur.media, cur.position);
+    history.attach(media, source);
+    room.setMedia(media);
+    const st = media && (position > 0 || playing) ? room.applyIntent({ type: playing ? "play" : "pause", position }) : room.stateForJoin();
+    io.emit("state", st);
+    emitHistory();
+    return st;
+  }
+
+  async function load(fn, source, opts) {
     try {
       const media = await fn();
-      io.emit("state", room.setMedia(media));
+      switchTo(media, source, opts);
       io.emit("media-status", { status: "ready" });
     } catch (e) {
       if (e.superseded) return;
@@ -30,6 +52,7 @@ function attachSockets(io, { room, manager, mediaDir, auth }) {
     socket.emit("hello", { name, serverNow: Date.now() });
     socket.emit("state", room.stateForJoin());
     socket.emit("chat-history", room.chat());
+    socket.emit("history", historyList());
     io.emit("presence", { online: room.online() });
 
     socket.on("time-sync", (ack) => typeof ack === "function" && ack(Date.now()));
@@ -39,8 +62,10 @@ function attachSockets(io, { room, manager, mediaDir, auth }) {
       io.emit("state", room.applyIntent(intent));
     });
 
-    socket.on("chat", (text) => {
-      const msg = room.addChat(name, text);
+    socket.on("chat", (input) => {
+      const payload = chatMedia ? chatMedia.messagePayload(input) : input;
+      if (!payload) return;
+      const msg = room.addChat(name, payload);
       if (msg) io.emit("chat", msg);
     });
 
@@ -63,27 +88,29 @@ function attachSockets(io, { room, manager, mediaDir, auth }) {
 
     socket.on("load-link", ({ url } = {}) => {
       io.emit("media-status", { status: "loading", by: name });
-      load(() => manager.loadLink(String(url || "").trim()));
+      const u = String(url || "").trim();
+      load(() => manager.loadLink(u), { type: "link", url: u });
     });
 
     socket.on("load-file", ({ path: rel } = {}) => {
       const abs = resolveSafe(mediaDir, rel);
       if (!abs) return socket.emit("media-error", { message: "File not found." });
       io.emit("media-status", { status: "loading", by: name });
-      load(() => manager.loadFile(abs, rel));
+      load(() => manager.loadFile(abs, rel), { type: "file", path: rel });
     });
 
     socket.on("load-external", ({ title, startAt } = {}) => {
       manager.stop();
       const pos = Math.max(0, Number(startAt) || 0);
-      room.setMedia({ id: "ext-" + Date.now(), kind: "external", title: String(title || "Other app").slice(0, 120) });
-      io.emit("state", room.applyIntent({ type: "seek", position: pos }));
+      const t = String(title || "Other app").slice(0, 120);
+      switchTo({ id: "ext-" + Date.now(), kind: "external", title: t }, { type: "external", title: t }, { position: pos || 0.001 });
     });
 
     socket.on("load-ext", ({ title, site, position, playing } = {}) => {
       manager.stop();
-      room.setMedia({ id: "extn-" + Date.now(), kind: "ext", title: String(title || "").slice(0, 160), site: String(site || "").slice(0, 40), by: name });
-      io.emit("state", room.applyIntent({ type: playing ? "play" : "pause", position }));
+      const t = String(title || "").slice(0, 160);
+      const st = String(site || "").slice(0, 40);
+      switchTo({ id: "extn-" + Date.now(), kind: "ext", title: t, site: st, by: name }, { type: "ext", title: t, site: st }, { position: Math.max(0, Number(position) || 0), playing: !!playing });
     });
 
     socket.on("ext-title", ({ title, site } = {}) => {
@@ -92,13 +119,12 @@ function attachSockets(io, { room, manager, mediaDir, auth }) {
 
     socket.on("share-start", () => {
       manager.stop();
-      room.setMedia({ id: "share-" + Date.now(), kind: "share", from: socket.id, title: `${name}'s screen` });
-      io.emit("state", room.applyIntent({ type: "play", position: 0 }));
+      switchTo({ id: "share-" + Date.now(), kind: "share", from: socket.id, title: `${name}'s screen` }, null, { playing: true });
     });
 
     socket.on("share-stop", () => {
       const m = room.media;
-      if (m && m.kind === "share" && m.from === socket.id) io.emit("state", room.setMedia(null));
+      if (m && m.kind === "share" && m.from === socket.id) switchTo(null, null);
     });
 
     socket.on("share-want", () => {
@@ -113,13 +139,41 @@ function attachSockets(io, { room, manager, mediaDir, auth }) {
 
     socket.on("stop-media", () => {
       manager.stop();
-      io.emit("state", room.setMedia(null));
+      switchTo(null, null);
+    });
+
+    // Pick up something from this session's history where you left off (paused, so either can press play).
+    socket.on("resume", ({ key } = {}) => {
+      const e = history.get(String(key || ""));
+      if (!e) return socket.emit("media-error", { message: "That item isn't in the list any more." });
+      const opts = { position: e.position || 0 };
+      const src = e.source;
+      if (src.type === "link") {
+        io.emit("media-status", { status: "loading", by: name });
+        load(() => manager.loadLink(src.url), src, opts);
+      } else if (src.type === "file") {
+        const abs = resolveSafe(mediaDir, src.path);
+        if (!abs) return socket.emit("media-error", { message: "That file isn't in the library any more." });
+        io.emit("media-status", { status: "loading", by: name });
+        load(() => manager.loadFile(abs, src.path), src, opts);
+      } else if (src.type === "external") {
+        manager.stop();
+        switchTo({ id: "ext-" + Date.now(), kind: "external", title: src.title }, src, { position: opts.position || 0.001 });
+      } else if (src.type === "ext") {
+        manager.stop();
+        switchTo({ id: "extn-" + Date.now(), kind: "ext", title: src.title, site: src.site, by: name }, src, { position: opts.position || 0.001 });
+      }
+    });
+
+    socket.on("history-clear", () => {
+      history.clear();
+      emitHistory();
     });
 
     socket.on("disconnect", () => {
       room.leave(socket.id);
       const m = room.media;
-      if (m && m.kind === "share" && m.from === socket.id) io.emit("state", room.setMedia(null));
+      if (m && m.kind === "share" && m.from === socket.id) switchTo(null, null);
       io.emit("presence", { online: room.online() });
     });
   });

@@ -79,3 +79,12 @@ test("bad positions are sanitized", () => {
   assert.equal(room.applyIntent({ type: "seek", position: -4 }).position, 0);
   assert.equal(room.applyIntent({ type: "seek", position: "abc" }).position, 0);
 });
+
+test("chat accepts image/gif payloads and rejects empty", () => {
+  const room = createRoom();
+  const m = room.addChat("A", { kind: "gif", src: "/gif/abc", w: 200, h: 150 });
+  assert.equal(m.kind, "gif");
+  assert.equal(m.src, "/gif/abc");
+  assert.equal(room.addChat("A", { kind: "image" }), null);
+  assert.equal(room.addChat("A", { text: "hi" }).text, "hi");
+});

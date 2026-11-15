@@ -94,13 +94,36 @@ chrome.runtime.onConnect.addListener((port) => {
   port.postMessage({ type: "chat-history", msgs: last.chat });
   port.postMessage({ type: "presence", online: last.online });
   if (!socket) connect();
-  port.onMessage.addListener((msg) => {
+  port.onMessage.addListener(async (msg) => {
+    if (msg && msg.event === "fetch-media") return fetchMedia(port, msg.data);
     if (!socket || !msg || !msg.event) return;
     const allowed = ["intent", "chat", "typing", "load-ext", "ext-title", "countdown", "panic"];
     if (allowed.includes(msg.event)) socket.emit(msg.event, msg.data);
   });
   port.onDisconnect.addListener(() => ports.delete(port));
 });
+
+// Chat photos/GIFs need the room login; fetch them here and hand the tab a data: URL.
+const mediaCache = new Map();
+async function fetchMedia(port, { src, reqId } = {}) {
+  if (typeof src !== "string" || !/^\/(chat-media|gif)\/[A-Za-z0-9]+$/.test(src)) return;
+  try {
+    if (!mediaCache.has(src)) {
+      const { server, token } = await chrome.storage.local.get(["server", "token"]);
+      const r = await fetch(server + src, { headers: { Authorization: "Bearer " + token } });
+      if (!r.ok) throw new Error(String(r.status));
+      const type = r.headers.get("content-type") || "image/gif";
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+      mediaCache.set(src, `data:${type};base64,${btoa(bin)}`);
+      if (mediaCache.size > 40) mediaCache.delete(mediaCache.keys().next().value);
+    }
+    port.postMessage({ type: "media", reqId, dataUrl: mediaCache.get(src) });
+  } catch {
+    port.postMessage({ type: "media", reqId, dataUrl: null });
+  }
+}
 
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.token || changes.server) connect();
